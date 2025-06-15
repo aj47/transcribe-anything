@@ -81,9 +81,9 @@ def _json_to_srt(json_data: Dict[str, Any]) -> str:
     for i, segment in enumerate(json_data["segments"], start=1):
         # Handle both old format (start/end) and new format (list with start, end, text)
         if isinstance(segment, list) and len(segment) >= 3:
-            # New format: [start_seek, end_seek, text]
-            start_time = segment[0] * 0.02  # Convert seek to seconds (assuming 50fps)
-            end_time = segment[1] * 0.02
+            # New format: [start_time, end_time, text] - timestamps appear to be doubled
+            start_time = segment[0] / 2  # Fix doubled timestamps
+            end_time = segment[1] / 2
             text = segment[2].strip()
         else:
             # Old format: dict with start/end/text
