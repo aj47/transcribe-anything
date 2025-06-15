@@ -4,6 +4,7 @@ Runs whisper api with Apple MLX support using lightning-whisper-mlx.
 
 import json
 import sys
+import wave
 from pathlib import Path
 from typing import Any, Dict
 
@@ -56,6 +57,26 @@ def get_environment() -> IsoEnv:
     return env
 
 
+def _get_audio_duration(wav_file: Path) -> float | None:
+    """Get the duration of a WAV file in seconds.
+
+    Args:
+        wav_file: Path to the WAV file
+
+    Returns:
+        Duration in seconds, or None if unable to determine
+    """
+    try:
+        with wave.open(str(wav_file), "rb") as wav:
+            frames = wav.getnframes()
+            rate = wav.getframerate()
+            duration = frames / float(rate)
+            return duration
+    except Exception as e:
+        sys.stderr.write(f"Warning: Could not determine audio duration: {e}\n")
+        return None
+
+
 def _format_timestamp(seconds: float) -> str:
     """Format seconds into SRT timestamp format."""
     milliseconds = int(seconds * 1000)
@@ -68,8 +89,13 @@ def _format_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
 
 
-def _json_to_srt(json_data: Dict[str, Any]) -> str:
-    """Convert lightning-whisper-mlx JSON output to SRT format."""
+def _json_to_srt(json_data: Dict[str, Any], duration: float | None = None) -> str:
+    """Convert lightning-whisper-mlx JSON output to SRT format.
+
+    Args:
+        json_data: The JSON output from lightning-whisper-mlx
+        duration: Optional duration of the media file in seconds for validation
+    """
     srt_content = ""
 
     if "segments" not in json_data:
@@ -78,12 +104,13 @@ def _json_to_srt(json_data: Dict[str, Any]) -> str:
             srt_content = "1\n00:00:00,000 --> 00:01:00,000\n" + json_data["text"] + "\n\n"
         return srt_content
 
-    for i, segment in enumerate(json_data["segments"], start=1):
+    segment_number = 1
+    for segment in json_data["segments"]:
         # Handle both old format (start/end) and new format (list with start, end, text)
         if isinstance(segment, list) and len(segment) >= 3:
-            # New format: [start_seek, end_seek, text]
-            start_time = segment[0] * 0.02  # Convert seek to seconds (assuming 50fps)
-            end_time = segment[1] * 0.02
+            # New format: [start_time, end_time, text] - timestamps are already in seconds
+            start_time = float(segment[0])
+            end_time = float(segment[1])
             text = segment[2].strip()
         else:
             # Old format: dict with start/end/text
@@ -91,18 +118,36 @@ def _json_to_srt(json_data: Dict[str, Any]) -> str:
             end_time = segment.get("end", start_time + 5)  # Default to 5 seconds if no end time
             text = segment.get("text", "").strip()
 
+        # Validate timestamps against duration if provided
+        if duration is not None:
+            if start_time >= duration:
+                # Skip segments that start at or after the media ends
+                continue
+            if end_time > duration:
+                # Clamp end time to media duration
+                end_time = duration
+            # Skip segments with zero or negative duration after clamping
+            if end_time <= start_time:
+                continue
+
         if text:  # Only include non-empty segments
-            srt_content += f"{i}\n"
+            srt_content += f"{segment_number}\n"
             srt_content += f"{_format_timestamp(start_time)} --> {_format_timestamp(end_time)}\n"
             srt_content += f"{text}\n\n"
+            segment_number += 1
 
     return srt_content
 
 
-def _generate_output_files(json_data: Dict[str, Any], output_dir: Path, initial_prompt: str | None = None) -> None:
+def _generate_output_files(json_data: Dict[str, Any], output_dir: Path, initial_prompt: str | None = None, input_wav: Path | None = None) -> None:
     """Generate all output files from the transcription result."""
+    # Get audio duration for timestamp validation
+    duration = None
+    if input_wav and input_wav.exists():
+        duration = _get_audio_duration(input_wav)
+
     # 1. SRT file
-    srt_content = _json_to_srt(json_data)
+    srt_content = _json_to_srt(json_data, duration)
     srt_file = output_dir / "out.srt"
     with open(srt_file, "w", encoding="utf-8") as f:
         f.write(srt_content)
@@ -336,7 +381,7 @@ except Exception as e:
             raise ValueError(error_msg)
 
         # Generate output files
-        _generate_output_files(json_data, output_dir, initial_prompt)
+        _generate_output_files(json_data, output_dir, initial_prompt, input_wav_abs)
 
     finally:
         # Clean up the temporary script
