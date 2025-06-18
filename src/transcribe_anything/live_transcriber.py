@@ -14,7 +14,7 @@ from transcribe_anything.live_recorder import LiveAudioRecorder
 from transcribe_anything.whisper import get_computing_device, run_whisper
 from transcribe_anything.whisper_mac import run_whisper_mac_mlx
 from transcribe_anything.insanely_fast_whisper import run_insanely_fast_whisper
-from transcribe_anything.util import Device
+from transcribe_anything.api import Device
 
 
 class LiveTranscriber:
@@ -110,13 +110,21 @@ class LiveTranscriber:
     def _transcribe_chunk(self, audio_chunk, chunk_id: int):
         """Transcribe a single audio chunk."""
         try:
+            # Check if we should stop transcribing
+            if not self.is_transcribing:
+                return
+
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmpdir_path = Path(tmpdir)
-                
+
                 # Save audio chunk to temporary WAV file
                 chunk_wav = tmpdir_path / f"chunk_{chunk_id}.wav"
                 self.recorder.save_chunk_to_wav(audio_chunk, chunk_wav)
-                
+
+                # Check again if we should stop transcribing before starting transcription
+                if not self.is_transcribing:
+                    return
+
                 # Transcribe using appropriate backend
                 if self.device_enum == Device.INSANE:
                     run_insanely_fast_whisper(
@@ -186,9 +194,23 @@ class LiveTranscriber:
                     self.total_transcribed_text += transcription_text + " "
                 else:
                     print(f"Chunk {chunk_id}: [No speech detected]")
-                    
+
+        except KeyboardInterrupt:
+            # Re-raise KeyboardInterrupt to allow proper shutdown
+            raise
+        except RuntimeError as e:
+            # Handle subprocess interruption more gracefully
+            error_msg = str(e)
+            if "return code 130" in error_msg or "KeyboardInterrupt" in error_msg:
+                # Return code 130 typically indicates SIGINT (Ctrl+C)
+                if self.is_transcribing:
+                    print(f"Chunk {chunk_id}: Transcription interrupted")
+                return
+            else:
+                print(f"Error transcribing chunk {chunk_id}: {e}")
         except Exception as e:
-            print(f"Error transcribing chunk {chunk_id}: {e}")
+            if self.is_transcribing:  # Only print error if we're still supposed to be transcribing
+                print(f"Error transcribing chunk {chunk_id}: {e}")
     
     def _transcription_worker(self):
         """Worker thread that processes transcription queue."""
@@ -198,15 +220,25 @@ class LiveTranscriber:
                 chunk_data = self.transcription_queue.get(timeout=1.0)
                 if chunk_data is None:  # Shutdown signal
                     break
-                
+
                 audio_chunk, chunk_id = chunk_data
                 self._transcribe_chunk(audio_chunk, chunk_id)
                 self.transcription_queue.task_done()
-                
+
             except queue.Empty:
                 continue
+            except KeyboardInterrupt:
+                # Handle KeyboardInterrupt gracefully in worker thread
+                print("Transcription worker interrupted")
+                break
             except Exception as e:
-                print(f"Error in transcription worker: {e}")
+                if self.is_transcribing:  # Only print error if we're still supposed to be transcribing
+                    print(f"Error in transcription worker: {e}")
+                # Mark task as done even if there was an error
+                try:
+                    self.transcription_queue.task_done()
+                except ValueError:
+                    pass  # task_done() called more times than there were items
     
     def start_live_transcription(self):
         """Start live recording and transcription."""
@@ -249,25 +281,47 @@ class LiveTranscriber:
         """Stop live recording and transcription."""
         if not self.is_transcribing:
             return
-        
+
         print("Stopping live transcription...")
-        
-        # Stop recording
-        self.recorder.stop_recording()
-        
+
+        # Stop recording first
+        try:
+            self.recorder.stop_recording()
+        except Exception as e:
+            print(f"Error stopping recorder: {e}")
+
         # Stop transcription
         self.is_transcribing = False
-        
+
         # Signal transcription worker to stop
-        self.transcription_queue.put(None)
-        
+        try:
+            self.transcription_queue.put(None)
+        except Exception as e:
+            print(f"Error signaling transcription worker: {e}")
+
         # Wait for transcription worker to finish
         if self.transcription_thread:
-            self.transcription_thread.join(timeout=5)
-        
-        # Wait for remaining transcriptions to complete
-        self.transcription_queue.join()
-        
+            try:
+                self.transcription_thread.join(timeout=3)  # Reduced timeout
+                if self.transcription_thread.is_alive():
+                    print("Warning: Transcription worker did not stop cleanly")
+            except Exception as e:
+                print(f"Error joining transcription thread: {e}")
+
+        # Try to wait for remaining transcriptions to complete, but don't block indefinitely
+        try:
+            # Clear any remaining items in the queue to avoid blocking
+            while not self.transcription_queue.empty():
+                try:
+                    self.transcription_queue.get_nowait()
+                    self.transcription_queue.task_done()
+                except queue.Empty:
+                    break
+                except Exception:
+                    break
+        except Exception as e:
+            print(f"Error clearing transcription queue: {e}")
+
         print(f"Live transcription stopped. Results saved to: {self.output_file}")
         print(f"Total chunks processed: {self.chunk_counter}")
     

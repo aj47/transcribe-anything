@@ -174,7 +174,7 @@ class TestLiveRecording(unittest.TestCase):
     def test_device_enum_conversion(self):
         """Test device string to enum conversion."""
         transcriber = LiveTranscriber(device="insane")
-        from transcribe_anything.util import Device
+        from transcribe_anything.api import Device
         
         self.assertEqual(transcriber._get_device_enum(), Device.INSANE)
         
