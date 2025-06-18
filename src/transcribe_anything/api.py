@@ -345,6 +345,73 @@ def transcribe(
             warnings.warn(f"Failed to remove {tmp_wav}: {exc}")
 
 
+def transcribe_live(
+    model: Optional[str] = None,
+    device: Optional[str] = None,
+    language: Optional[str] = None,
+    task: Optional[str] = None,
+    initial_prompt: Optional[str] = None,
+    chunk_duration: float = 5.0,
+    overlap_duration: float = 1.0,
+    include_desktop_audio: bool = False,
+    device_id: Optional[int] = None,
+    output_file: Optional[str] = None,
+    hugging_face_token: Optional[str] = None,
+    other_args: Optional[list[str]] = None,
+) -> str:
+    """
+    Start live audio recording and transcription.
+
+    Args:
+        model: Whisper model to use (tiny, small, medium, large, etc.)
+        device: Device to use (cuda, cpu, insane, mlx)
+        language: Language of the audio (auto-detected if None)
+        task: Task to perform (transcribe or translate)
+        initial_prompt: Initial prompt to provide context for transcription
+        chunk_duration: Duration of each audio chunk in seconds
+        overlap_duration: Overlap between chunks in seconds
+        include_desktop_audio: Whether to include desktop/system audio
+        device_id: Specific audio device ID to use
+        output_file: File to write live transcriptions to
+        hugging_face_token: Token for speaker diarization
+        other_args: Additional arguments to pass to Whisper backend
+
+    Returns:
+        Path to the output file containing live transcriptions
+    """
+    from transcribe_anything.live_transcriber import LiveTranscriber
+
+    # Set defaults
+    model = model or "small"
+    device = device or get_computing_device()
+    task = task or "transcribe"
+    output_file = output_file or "live_transcription.txt"
+
+    # Create and start live transcriber
+    live_transcriber = LiveTranscriber(
+        model=model,
+        device=device,
+        language=language,
+        task=task,
+        initial_prompt=initial_prompt,
+        chunk_duration=chunk_duration,
+        overlap_duration=overlap_duration,
+        include_desktop_audio=include_desktop_audio,
+        device_id=device_id,
+        output_file=output_file,
+        hugging_face_token=hugging_face_token,
+        other_args=other_args,
+    )
+
+    try:
+        live_transcriber.start_live_transcription()
+        return output_file
+    except KeyboardInterrupt:
+        print("Live transcription interrupted by user")
+        live_transcriber.stop_live_transcription()
+        return output_file
+
+
 if __name__ == "__main__":
     # test case for twitter video
     # transcribe(url_or_file="https://twitter.com/wlctv_ca/status/1598895698870951943")
