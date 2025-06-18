@@ -147,9 +147,59 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         type=str,
     )
+    parser.add_argument(
+        "--live",
+        help="Enable live recording and transcription mode",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--list-devices",
+        help="List available audio input devices and exit",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--device-id",
+        help="Audio device ID to use for live recording (use --list-devices to see available devices)",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--chunk-duration",
+        help="Duration of each audio chunk in seconds for live transcription (default: 5.0)",
+        type=float,
+        default=5.0,
+    )
+    parser.add_argument(
+        "--overlap-duration",
+        help="Overlap between audio chunks in seconds (default: 1.0)",
+        type=float,
+        default=1.0,
+    )
+    parser.add_argument(
+        "--include-desktop-audio",
+        help="Include desktop/system audio in live recording (experimental)",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--live-output",
+        help="Output file for live transcription (default: live_transcription.txt)",
+        default="live_transcription.txt",
+        type=str,
+    )
     # add extra options that are passed into the transcribe function
     args, unknown = parser.parse_known_args()
-    if args.url_or_file is None and args.query_gpu_json_path is None and not getattr(args, "clear_nvidia_cache", False):
+
+    # Handle list devices option
+    if getattr(args, "list_devices", False):
+        from transcribe_anything.live_transcriber import LiveTranscriber
+        LiveTranscriber.list_audio_devices()
+        sys.exit(0)
+
+    # Check if we need a file/url (not needed for live mode or special commands)
+    if (args.url_or_file is None and
+        args.query_gpu_json_path is None and
+        not getattr(args, "clear_nvidia_cache", False) and
+        not getattr(args, "live", False)):
         print("No file or url provided")
         parser.print_help()
         sys.exit(1)
@@ -238,6 +288,38 @@ def main() -> int:
         unknown.extend(["--initial_prompt", args.initial_prompt])
         print(f"Using initial prompt: {args.initial_prompt[:100]}{'...' if len(args.initial_prompt) > 100 else ''}")
 
+    # Handle live transcription mode
+    if getattr(args, "live", False):
+        try:
+            from transcribe_anything.live_transcriber import LiveTranscriber
+
+            live_transcriber = LiveTranscriber(
+                model=args.model if args.model != "None" else "small",
+                device=args.device,
+                language=args.language if args.language != "None" else None,
+                task=args.task,
+                initial_prompt=args.initial_prompt,
+                chunk_duration=getattr(args, "chunk_duration", 5.0),
+                overlap_duration=getattr(args, "overlap_duration", 1.0),
+                include_desktop_audio=getattr(args, "include_desktop_audio", False),
+                device_id=getattr(args, "device_id", None),
+                output_file=getattr(args, "live_output", "live_transcription.txt"),
+                hugging_face_token=args.hf_token,
+                other_args=unknown,
+            )
+
+            live_transcriber.start_live_transcription()
+            return 0
+
+        except KeyboardInterrupt:
+            print("Live transcription interrupted")
+            return 0
+        except Exception as e:  # pylint: disable=broad-except
+            stack = traceback.format_exc()
+            sys.stderr.write(f"Error in live transcription: {e}\n{stack}\n")
+            return 1
+
+    # Regular file/URL transcription mode
     if unknown:
         print(f"Args passed to whisper backend: {unknown}")
     print(f"Running transcribe_audio on {args.url_or_file}")

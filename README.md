@@ -79,6 +79,9 @@ transcribe-anything https://www.youtube.com/watch?v=dQw4w9WgXcQ --device insane
 # Mac Apple Silicon accelerated
 transcribe-anything https://www.youtube.com/watch?v=dQw4w9WgXcQ --device mlx
 
+# Live recording and transcription (NEW!)
+transcribe-anything --live --device mlx --initial_prompt "Meeting notes, technical discussion"
+
 # Advanced options (see Advanced Options section below for full details)
 transcribe-anything video.mp4 --device mlx --batch_size 16 --verbose
 transcribe-anything video.mp4 --device insane --batch-size 8 --flash True
@@ -249,6 +252,94 @@ transcribe(
     url_or_file="video.mp4",
     initial_prompt=prompt
 )
+```
+
+## Live Recording and Transcription
+
+**NEW in v3.2!** Real-time audio recording and transcription from your microphone and desktop audio.
+
+### Quick Start
+
+```bash
+# Start live transcription with default settings
+transcribe-anything --live
+
+# Live transcription with custom model and device
+transcribe-anything --live --device mlx --model medium
+
+# Live transcription with custom vocabulary
+transcribe-anything --live --initial_prompt "Meeting notes: project planning, deadlines, budget discussions"
+
+# List available audio devices
+transcribe-anything --list-devices
+
+# Use specific audio device
+transcribe-anything --live --device-id 2
+```
+
+### Live Recording Options
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `--live` | Enable live recording mode | - |
+| `--list-devices` | List available audio input devices | - |
+| `--device-id` | Specific audio device ID to use | Default device |
+| `--chunk-duration` | Audio chunk duration in seconds | 5.0 |
+| `--overlap-duration` | Overlap between chunks in seconds | 1.0 |
+| `--include-desktop-audio` | Include system/desktop audio (experimental) | false |
+| `--live-output` | Output file for live transcription | live_transcription.txt |
+
+### Python API for Live Transcription
+
+```python
+from transcribe_anything.api import transcribe_live
+
+# Basic live transcription
+transcribe_live(
+    model="small",
+    device="mlx",
+    output_file="meeting_notes.txt"
+)
+
+# Advanced live transcription with custom settings
+transcribe_live(
+    model="medium",
+    device="insane",
+    language="en",
+    initial_prompt="Technical discussion about AI, machine learning, and software development",
+    chunk_duration=3.0,
+    overlap_duration=0.5,
+    include_desktop_audio=False,
+    output_file="live_transcript.txt"
+)
+```
+
+### Live Recording Features
+
+- **Real-time transcription**: Audio is processed in overlapping chunks for continuous transcription
+- **Multiple backends**: Works with all supported backends (CPU, CUDA, MLX, Insane)
+- **Custom vocabulary**: Use `--initial_prompt` for better recognition of domain-specific terms
+- **Device selection**: Choose specific microphone or audio input device
+- **Desktop audio**: Experimental support for capturing system audio (varies by platform)
+- **Continuous output**: Transcriptions are written to file in real-time with timestamps
+
+### Platform Support
+
+- **Windows**: Microphone recording supported, desktop audio experimental
+- **macOS**: Full microphone support, desktop audio experimental
+- **Linux**: Microphone recording supported, desktop audio experimental
+
+### Usage Examples
+
+```bash
+# Meeting transcription with technical vocabulary
+transcribe-anything --live --device mlx --initial_prompt "Software engineering meeting: APIs, databases, microservices, deployment"
+
+# Interview recording with specific device
+transcribe-anything --live --device-id 1 --model large --live-output interview_transcript.txt
+
+# Quick voice notes
+transcribe-anything --live --model tiny --chunk-duration 3.0
 ```
 
 #### Best Practices
