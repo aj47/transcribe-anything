@@ -75,7 +75,7 @@ def run_groq_whisper(
     
     # Check file size and determine if chunking is needed
     file_size = input_wav.stat().st_size
-    max_size = 90 * 1024 * 1024  # 90MB to be safe (leave buffer for encoding overhead)
+    max_size = 20 * 1024 * 1024  # 20MB to be safe (Groq limit is 25MB, leave buffer for encoding overhead)
     needs_chunking = file_size > max_size
     
     # Ensure output directory exists
@@ -85,7 +85,7 @@ def run_groq_whisper(
     print(f"File size: {file_size / 1024 / 1024:.1f}MB")
 
     if needs_chunking:
-        print(f"File exceeds {max_size / 1024 / 1024:.0f}MB limit, will process in chunks...")
+        print(f"File exceeds {max_size / 1024 / 1024:.0f}MB safe limit (Groq max is 25MB), will process in chunks...")
         _transcribe_large_file_chunked(
             input_wav, model, output_dir, task, language,
             api_key, initial_prompt, other_args
@@ -211,9 +211,9 @@ def _transcribe_large_file_chunked(
     if duration is None:
         raise RuntimeError("Could not determine audio duration for chunking")
 
-    # Calculate chunk duration (aim for ~80MB chunks, estimate 1MB per minute for WAV)
-    chunk_duration_minutes = 60  # Start with 60 minutes per chunk
-    max_chunk_size_mb = 80
+    # Calculate chunk duration (aim for ~15MB chunks, estimate 1MB per minute for WAV)
+    chunk_duration_minutes = 15  # Start with 15 minutes per chunk to stay under 25MB limit
+    max_chunk_size_mb = 15
 
     print(f"Audio duration: {duration:.1f} seconds ({duration/60:.1f} minutes)")
 
@@ -233,8 +233,8 @@ def _transcribe_large_file_chunked(
 
             # Check chunk size
             chunk_size = chunk_path.stat().st_size
-            if chunk_size > 100 * 1024 * 1024:  # Still too large
-                print(f"Warning: Chunk {i+1} is still {chunk_size / 1024 / 1024:.1f}MB, may fail")
+            if chunk_size > 20 * 1024 * 1024:  # Still too large for Groq's 25MB limit
+                print(f"Warning: Chunk {i+1} is still {chunk_size / 1024 / 1024:.1f}MB, may fail (Groq limit is 25MB)")
 
             # Transcribe this chunk
             with tempfile.TemporaryDirectory() as temp_dir:
