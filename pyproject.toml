@@ -18,6 +18,7 @@ dependencies = [
     "webvtt-py==0.4.6",
     "uv-iso-env>=1.0.43",
     "python-dotenv>=1.0.1",
+    "groq>=0.11.0",
 ]
 # VERSION
 version = "3.2.0"  # Update this manually or configure setuptools-scm for automatic versioning

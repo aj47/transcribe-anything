@@ -14,11 +14,19 @@ def ytdlp_download(url: str, outdir: str) -> str:
     # remove all files in the directory
     for file in os.listdir(outdir):
         os.remove(os.path.join(outdir, file))
-    cmd = f'yt-dlp --no-check-certificate {url} -o "out.%(ext)s"'
-    print(f"Running:\n  {cmd}")
+
+    # Build command as list to avoid shell injection issues
+    cmd_list = [
+        "yt-dlp",
+        "--no-check-certificate",
+        url,
+        "-o", "out.%(ext)s"
+    ]
+    cmd_str = subprocess.list2cmdline(cmd_list)
+    print(f"Running:\n  {cmd_str}")
     subprocess.run(
-        cmd,
-        shell=True,
+        cmd_list,
+        shell=False,
         cwd=outdir,
         check=True,
         timeout=PROCESS_TIMEOUT,
