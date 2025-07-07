@@ -23,6 +23,7 @@ import static_ffmpeg  # type: ignore
 from appdirs import user_config_dir  # type: ignore
 
 from transcribe_anything.audio import fetch_audio
+from transcribe_anything.groq_whisper import run_groq_whisper
 from transcribe_anything.insanely_fast_whisper import run_insanely_fast_whisper
 from transcribe_anything.logger import log_error
 from transcribe_anything.util import chop_double_extension, sanitize_filename
@@ -53,6 +54,7 @@ class Device(Enum):
     CUDA = "cuda"
     INSANE = "insane"
     MLX = "mlx"
+    GROQ = "groq"
 
     def __str__(self) -> str:
         return self.value
@@ -73,6 +75,8 @@ class Device(Enum):
             if sys.platform != "darwin":
                 raise ValueError("MLX is only supported on macOS.")
             return Device.MLX
+        if device == "groq":
+            return Device.GROQ
         # Backward compatibility: accept 'mps' as alias for 'mlx'
         if device == "mps":
             if sys.platform != "darwin":
@@ -174,6 +178,7 @@ def transcribe(
     hugging_face_token: Optional[str] = None,
     other_args: Optional[list[str]] = None,
     initial_prompt: Optional[str] = None,
+    groq_api_key: Optional[str] = None,
 ) -> str:
     """
     Runs the transcription program.
@@ -184,13 +189,14 @@ def transcribe(
         model: Whisper model to use (tiny, small, medium, large, etc.)
         task: Task to perform (transcribe or translate)
         language: Language of the audio (auto-detected if None)
-        device: Device to use (cuda, cpu, insane, mlx)
+        device: Device to use (cuda, cpu, insane, mlx, groq)
         embed: Whether to embed subtitles into video file
         hugging_face_token: Token for speaker diarization
         other_args: Additional arguments to pass to Whisper backend
         initial_prompt: Initial prompt to provide context for transcription.
                        Useful for custom vocabulary, names, or domain-specific terms.
                        Example: "The speaker discusses AI, machine learning, and neural networks."
+        groq_api_key: API key for Groq speech-to-text service (can also be set via GROQ_API_KEY env var)
 
     Returns:
         Path to the output directory containing transcription files
@@ -244,6 +250,10 @@ def transcribe(
             print("#####################################")
             print("####### MAC MLX GPU MODE! ###########")
             print("#####################################")
+        elif device_enum == Device.GROQ:
+            print("#####################################")
+            print("####### GROQ API MODE! ###############")
+            print("#####################################")
         else:
             raise ValueError(f"Unknown device {device}")
         print(f"Using device {device}")
@@ -260,7 +270,18 @@ def transcribe(
 
         print(f"Running whisper on {tmp_wav} (will install models on first run)")
         with tempfile.TemporaryDirectory() as tmpdir:
-            if device_enum == Device.INSANE:
+            if device_enum == Device.GROQ:
+                run_groq_whisper(
+                    input_wav=Path(tmp_wav),
+                    model=model_str,
+                    output_dir=Path(tmpdir),
+                    task=task_str,
+                    language=language_str,
+                    api_key=groq_api_key,
+                    initial_prompt=initial_prompt,
+                    other_args=other_args,
+                )
+            elif device_enum == Device.INSANE:
                 run_insanely_fast_whisper(
                     input_wav=Path(tmp_wav),
                     model=model_str,

@@ -100,12 +100,12 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         choices=[None] + whisper_options["language"],
     )
-    choices = [None, "cpu", "cuda", "insane"]
+    choices = [None, "cpu", "cuda", "insane", "groq"]
     if platform.system() == "Darwin":
         choices.extend(["mlx", "mps"])  # mps for backward compatibility
     parser.add_argument(
         "--device",
-        help="device to use for processing, None will auto select CUDA if available or else CPU",
+        help="device to use for processing, None will auto select CUDA if available or else CPU. Use 'groq' for Groq API",
         default=None,
         choices=choices,
     )
@@ -118,6 +118,11 @@ def parse_arguments() -> argparse.Namespace:
         "--save_hf_token",
         help="save huggingface token to a file for future use",
         action="store_true",
+    )
+    parser.add_argument(
+        "--groq_api_key",
+        help="Groq API key for speech-to-text (can also be set via GROQ_API_KEY environment variable)",
+        default=None,
     )
     parser.add_argument(
         "--diarization_model",
@@ -254,6 +259,7 @@ def main() -> int:
             embed=args.embed,
             hugging_face_token=args.hf_token,
             other_args=unknown,
+            groq_api_key=args.groq_api_key,
         )
     except KeyboardInterrupt:
         print("KeyboardInterrupt")

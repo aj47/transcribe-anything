@@ -79,6 +79,10 @@ transcribe-anything https://www.youtube.com/watch?v=dQw4w9WgXcQ --device insane
 # Mac Apple Silicon accelerated
 transcribe-anything https://www.youtube.com/watch?v=dQw4w9WgXcQ --device mlx
 
+# Groq API (fastest, requires API key)
+export GROQ_API_KEY="your_groq_api_key_here"
+transcribe-anything https://www.youtube.com/watch?v=dQw4w9WgXcQ --device groq
+
 # Advanced options (see Advanced Options section below for full details)
 transcribe-anything video.mp4 --device mlx --batch_size 16 --verbose
 transcribe-anything video.mp4 --device insane --batch-size 8 --flash True
@@ -97,6 +101,14 @@ transcribe_anything(
     device="cuda"
 )
 
+# Using Groq API for fastest transcription
+transcribe_anything(
+    url_or_file="video.mp4",
+    output_dir="output_dir",
+    device="groq",
+    groq_api_key="your_groq_api_key"  # or set GROQ_API_KEY env var
+)
+
 # Full function signiture:
 def transcribe(
     url_or_file: str,
@@ -104,11 +116,12 @@ def transcribe(
     model: Optional[str] = None,              # tiny,small,medium,large
     task: Optional[str] = None,               # transcribe or translate
     language: Optional[str] = None,           # auto detected if none, "en" for english...
-    device: Optional[str] = None,             # cuda,cpu,insane,mlx
+    device: Optional[str] = None,             # cuda,cpu,insane,mlx,groq
     embed: bool = False,                      # Produces a video.mp4 with the subtitles burned in.
     hugging_face_token: Optional[str] = None, # If you want a speaker.json
     other_args: Optional[list[str]] = None,   # Other args to be passed to to the whisper backend
     initial_prompt: Optional[str] = None,     # Custom prompt for better recognition of specific terms
+    groq_api_key: Optional[str] = None,       # Groq API key for speech-to-text (or set GROQ_API_KEY env var)
 ) -> str:
 
 ```
@@ -197,12 +210,73 @@ Mac:
 
 - Use `--device mlx`
 
+# Groq API Integration
+
+For the fastest transcription speeds, you can use Groq's speech-to-text API. This requires a Groq API key but provides near-instant transcription results.
+
+## Setup
+
+1. Get a free API key from [Groq Console](https://console.groq.com/)
+2. Set your API key as an environment variable:
+
+```bash
+export GROQ_API_KEY="your_groq_api_key_here"
+```
+
+Or pass it directly:
+
+```bash
+transcribe-anything video.mp4 --device groq --groq_api_key "your_api_key"
+```
+
+## Supported Models
+
+- `whisper-large-v3` - Best accuracy, multilingual
+- `whisper-large-v3-turbo` - Faster, multilingual (default mapping for most models)
+- `distil-whisper-large-v3-en` - Fastest, English-only
+
+## Features
+
+- **Speed**: Near-instant transcription (189-250x real-time)
+- **File Size**: Automatic chunking for files larger than 90MB
+- **Languages**: Multilingual support with automatic detection
+- **Custom Prompts**: Support for domain-specific vocabulary
+- **Output Formats**: Same SRT, VTT, TXT, and JSON outputs as other backends
+- **Smart Chunking**: Large files are automatically split into chunks and reassembled
+
+## Usage Examples
+
+```bash
+# Basic Groq transcription
+transcribe-anything video.mp4 --device groq
+
+# With custom model
+transcribe-anything audio.wav --device groq --model whisper-large-v3
+
+# With custom prompt for better accuracy
+transcribe-anything meeting.mp3 --device groq --initial_prompt "This is a technical discussion about AI and machine learning"
+
+# Translate to English
+transcribe-anything foreign_audio.mp4 --device groq --task translate
+
+# Large file (will be automatically chunked)
+transcribe-anything large_podcast.mp3 --device groq --model whisper-large-v3-turbo
+```
+
+## Limitations
+
+- Requires internet connection
+- API usage limits apply (see Groq pricing)
+- Large files are automatically chunked (may have slight timing gaps between chunks)
+- Requires `ffmpeg` for audio chunking of large files
+
 # Advanced Options and Backend-Specific Arguments
 
 ## Quick Reference
 
 | Backend | Device Flag | Key Arguments | Best For |
 |---------|-------------|---------------|----------|
+| **Groq API** | `--device groq` | `--groq_api_key`, `--initial_prompt` | Fastest transcription (cloud) |
 | **MLX** | `--device mlx` | `--batch_size`, `--verbose`, `--initial_prompt` | Mac Apple Silicon |
 | **Insanely Fast** | `--device insane` | `--batch-size`, `--hf_token`, `--flash`, `--timestamp` | Windows/Linux GPU |
 | **CPU** | `--device cpu` | Standard whisper args | Universal compatibility |
