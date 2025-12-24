@@ -101,12 +101,14 @@ def parse_arguments() -> argparse.Namespace:
         choices=[None] + whisper_options["language"],
     )
     choices = [None, "cpu", "cuda", "insane", "groq"]
+    default_device = None
     if platform.system() == "Darwin":
         choices.extend(["mlx", "mps", "parakeet"])  # mps for backward compatibility, parakeet for CoreML Parakeet TDT
+        default_device = "parakeet"  # Default to parakeet on macOS
     parser.add_argument(
         "--device",
-        help="device to use for processing, None will auto select CUDA if available or else CPU. Use 'groq' for Groq API, 'parakeet' for CoreML Parakeet TDT (macOS only)",
-        default=None,
+        help="device to use for processing. On macOS defaults to 'parakeet' (CoreML Parakeet TDT). Otherwise auto selects CUDA if available or else CPU. Use 'groq' for Groq API.",
+        default=default_device,
         choices=choices,
     )
     parser.add_argument(
