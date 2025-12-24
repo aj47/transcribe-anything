@@ -183,7 +183,7 @@ try:
         overlap_duration=15.0,  # 15 second overlap
     )
 
-    # Build output JSON with sentences for SRT generation
+    # Build output JSON with sentences and word-level timestamps
     output = {{
         "text": result.text,
         "sentences": [
@@ -192,6 +192,14 @@ try:
                 "start": s.start,
                 "end": s.end,
                 "duration": s.duration,
+                "words": [
+                    {{
+                        "word": t.text,
+                        "start": t.start,
+                        "end": t.end,
+                    }}
+                    for t in s.tokens
+                ] if hasattr(s, 'tokens') and s.tokens else []
             }}
             for s in result.sentences
         ]

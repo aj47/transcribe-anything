@@ -151,3 +151,8 @@ tests/localfile/text_video_*
 # Video files
 *.mp4
 *.wav
+# Model weight files
+*.npz
+
+# Nested virtual environments
+src/transcribe_anything/venv/
