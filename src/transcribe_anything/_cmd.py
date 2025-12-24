@@ -102,10 +102,10 @@ def parse_arguments() -> argparse.Namespace:
     )
     choices = [None, "cpu", "cuda", "insane", "groq"]
     if platform.system() == "Darwin":
-        choices.extend(["mlx", "mps"])  # mps for backward compatibility
+        choices.extend(["mlx", "mps", "parakeet"])  # mps for backward compatibility, parakeet for CoreML Parakeet TDT
     parser.add_argument(
         "--device",
-        help="device to use for processing, None will auto select CUDA if available or else CPU. Use 'groq' for Groq API",
+        help="device to use for processing, None will auto select CUDA if available or else CPU. Use 'groq' for Groq API, 'parakeet' for CoreML Parakeet TDT (macOS only)",
         default=None,
         choices=choices,
     )

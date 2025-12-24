@@ -26,6 +26,7 @@ from transcribe_anything.audio import fetch_audio
 from transcribe_anything.groq_whisper import run_groq_whisper
 from transcribe_anything.insanely_fast_whisper import run_insanely_fast_whisper
 from transcribe_anything.logger import log_error
+from transcribe_anything.parakeet_mlx import run_parakeet_mlx
 from transcribe_anything.util import chop_double_extension, sanitize_filename
 from transcribe_anything.whisper import get_computing_device, run_whisper
 from transcribe_anything.whisper_mac import run_whisper_mac_mlx
@@ -55,6 +56,7 @@ class Device(Enum):
     INSANE = "insane"
     MLX = "mlx"
     GROQ = "groq"
+    PARAKEET = "parakeet"
 
     def __str__(self) -> str:
         return self.value
@@ -77,6 +79,10 @@ class Device(Enum):
             return Device.MLX
         if device == "groq":
             return Device.GROQ
+        if device == "parakeet":
+            if sys.platform != "darwin":
+                raise ValueError("Parakeet (CoreML/MLX) is only supported on macOS.")
+            return Device.PARAKEET
         # Backward compatibility: accept 'mps' as alias for 'mlx'
         if device == "mps":
             if sys.platform != "darwin":
@@ -254,6 +260,10 @@ def transcribe(
             print("#####################################")
             print("####### GROQ API MODE! ###############")
             print("#####################################")
+        elif device_enum == Device.PARAKEET:
+            print("#####################################")
+            print("####### PARAKEET CoreML MODE! #######")
+            print("#####################################")
         else:
             raise ValueError(f"Unknown device {device}")
         print(f"Using device {device}")
@@ -293,6 +303,14 @@ def transcribe(
                 )
             elif device_enum == Device.MLX:
                 run_whisper_mac_mlx(input_wav=Path(tmp_wav), model=model_str, output_dir=Path(tmpdir), language=language_str if language_str else None, task=task_str, other_args=other_args)
+            elif device_enum == Device.PARAKEET:
+                run_parakeet_mlx(
+                    input_wav=Path(tmp_wav),
+                    model=model_str,
+                    output_dir=Path(tmpdir),
+                    language=language_str if language_str else None,
+                    other_args=other_args,
+                )
             else:
                 run_whisper(
                     input_wav=Path(tmp_wav),
