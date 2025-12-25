@@ -104,10 +104,13 @@ def parse_arguments() -> argparse.Namespace:
     default_device = None
     if platform.system() == "Darwin":
         choices.extend(["mlx", "mps", "parakeet"])  # mps for backward compatibility, parakeet for CoreML Parakeet TDT
-        default_device = "parakeet"  # Default to parakeet on macOS
+        # Only default to parakeet on Apple Silicon (arm64), not Intel Macs
+        from transcribe_anything.util import is_mac_arm
+        if is_mac_arm():
+            default_device = "parakeet"  # Default to parakeet on Apple Silicon macOS
     parser.add_argument(
         "--device",
-        help="device to use for processing. On macOS defaults to 'parakeet' (CoreML Parakeet TDT). Otherwise auto selects CUDA if available or else CPU. Use 'groq' for Groq API.",
+        help="device to use for processing. On Apple Silicon macOS defaults to 'parakeet' (CoreML Parakeet TDT). Otherwise auto selects CUDA if available or else CPU. Use 'groq' for Groq API.",
         default=default_device,
         choices=choices,
     )
