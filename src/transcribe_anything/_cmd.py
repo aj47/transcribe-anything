@@ -38,6 +38,9 @@ WHISPER_MODEL_OPTIONS = [
     "large-v2",
     "large-v3",
     "distil-whisper/distil-large-v2",
+    "parakeet-v2",
+    "parakeet-v3",
+    "parakeet-110m",
 ]
 
 
@@ -84,7 +87,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        help="name of the Whisper model to us",
+        help="ASR model. On Apple Silicon the default device maps unspecified Whisper names to parakeet-v3.",
         default="small",
         choices=WHISPER_MODEL_OPTIONS,
     )
@@ -103,14 +106,14 @@ def parse_arguments() -> argparse.Namespace:
     choices = [None, "cpu", "cuda", "insane", "groq"]
     default_device = None
     if platform.system() == "Darwin":
-        choices.extend(["mlx", "mps", "parakeet"])  # mps for backward compatibility, parakeet for CoreML Parakeet TDT
+        choices.extend(["mlx", "mps", "parakeet", "parakeet-mlx"])
         # Only default to parakeet on Apple Silicon (arm64), not Intel Macs
         from transcribe_anything.util import is_mac_arm
         if is_mac_arm():
             default_device = "parakeet"  # Default to parakeet on Apple Silicon macOS
     parser.add_argument(
         "--device",
-        help="device to use for processing. On Apple Silicon macOS defaults to 'parakeet' (CoreML Parakeet TDT). Otherwise auto selects CUDA if available or else CPU. Use 'groq' for Groq API.",
+        help="device to use for processing. On Apple Silicon macOS defaults to 'parakeet' (FluidAudio/CoreML Parakeet v3 int8). Use 'parakeet-mlx' only as an explicit rollback. Otherwise auto selects CUDA if available or else CPU. Use 'groq' for Groq API.",
         default=default_device,
         choices=choices,
     )

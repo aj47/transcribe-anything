@@ -7,11 +7,56 @@
 
 ![image](https://github.com/zackees/transcribe-anything/assets/6856673/94bdd1fe-3225-438a-ac1b-09c81f1d4108)
 
-### USES WHISPER AI
+### LOCAL SPEECH-TO-TEXT
 
 Over 700+⭐'s because this program this app just works! Works great for windows and mac. This whisper front-end app is the only one to generate a `speaker.json` file which partitions the conversation by who doing the speaking.
 
 [![Star History Chart](https://api.star-history.com/svg?repos=zackees/transcribe-anything&type=Date)](https://star-history.com/#zackees/transcribe-anything&Date)
+
+### New in 3.3!
+
+**Apple Silicon now defaults to the audited FluidAudio/CoreML Parakeet v3 int8 backend.**
+
+```bash
+# Default on Apple Silicon. English, local, word-timed, filler-aware.
+transcribe-anything video.mp4 --language en
+
+# Equivalent explicit command.
+transcribe-anything video.mp4 --device parakeet --model parakeet-v3 --language en
+
+# Explicit legacy rollback only.
+transcribe-anything video.mp4 --device parakeet-mlx --model parakeet-v2 --language en
+```
+
+The CoreML result includes standard `out.json`, `out.txt`, `out.srt`, and
+`out.vtt` files. `out.json` also contains calibrated, reviewable
+`filler_events` for literal `um`, `uh`, `ah`, and `mmm` sounds. These events
+describe what was heard; `editorial_decision` remains `unreviewed` until a
+person or editing workflow decides whether the sound should be removed.
+
+`--device parakeet` resolves `FluidAudioCLI` from
+`TRANSCRIBE_ANYTHING_FLUIDAUDIO_BINARY`, the current `PATH`, or
+`~/.local/lib/transcribe-anything/FluidAudioCLI`. It never downloads an
+executable at runtime.
+
+Build and install the audited Apache-2.0 FluidAudio CLI on macOS 14+ with
+Xcode/Swift 6:
+
+```bash
+git clone https://github.com/FluidInference/FluidAudio.git
+cd FluidAudio
+git checkout 88d6d8166880dee1ac7c32c80f8e10cd782f8ca8
+swift build -c release --product fluidaudiocli
+install -d ~/.local/lib/transcribe-anything
+install -m 755 "$(swift build -c release --show-bin-path)/fluidaudiocli" \
+  ~/.local/lib/transcribe-anything/FluidAudioCLI
+```
+
+The validated arm64 build had SHA-256
+`a4c2a4dba49005e8e91ead57a38b3a1d96e0d81040a96c3d00d31c84e5fc1b69`.
+FluidAudio currently resolves model files from the model repository's `main`
+revision. Backend metadata therefore distinguishes the audited model revision
+from an actually enforced revision instead of claiming the download is pinned.
 
 ### New in 3.2!
 
@@ -76,8 +121,8 @@ transcribe-anything https://www.youtube.com/watch?v=dQw4w9WgXcQ
 # GPU accelerated (Windows/Linux)
 transcribe-anything https://www.youtube.com/watch?v=dQw4w9WgXcQ --device insane
 
-# Mac Apple Silicon accelerated
-transcribe-anything https://www.youtube.com/watch?v=dQw4w9WgXcQ --device mlx
+# Mac Apple Silicon accelerated (default)
+transcribe-anything https://www.youtube.com/watch?v=dQw4w9WgXcQ --device parakeet --model parakeet-v3
 
 # Groq API (fastest, requires API key)
 export GROQ_API_KEY="your_groq_api_key_here"
@@ -113,10 +158,10 @@ transcribe_anything(
 def transcribe(
     url_or_file: str,
     output_dir: Optional[str] = None,
-    model: Optional[str] = None,              # tiny,small,medium,large
+    model: Optional[str] = None,              # Whisper models or parakeet-v2/v3/110m
     task: Optional[str] = None,               # transcribe or translate
     language: Optional[str] = None,           # auto detected if none, "en" for english...
-    device: Optional[str] = None,             # cuda,cpu,insane,mlx,groq
+    device: Optional[str] = None,             # cuda,cpu,insane,mlx,groq,parakeet,parakeet-mlx
     embed: bool = False,                      # Produces a video.mp4 with the subtitles burned in.
     hugging_face_token: Optional[str] = None, # If you want a speaker.json
     other_args: Optional[list[str]] = None,   # Other args to be passed to to the whisper backend
@@ -200,7 +245,7 @@ We have a [Dockerfile](Dockerfile) that will be descently fast for startup. It i
 
 # GPU Acceleration
 
-GPU acceleration will be automatically enabled for windows and linux. Mac users can use `--device mlx` for hardware acceleration on Apple Silicon. `--device insane` may also work on Mac M1+ but has been less tested.
+GPU acceleration will be automatically enabled for windows and linux. Apple Silicon Macs default to `--device parakeet`, which runs FluidAudio/CoreML Parakeet v3 int8. `--device mlx` remains available for Whisper, while `--device parakeet-mlx` is the explicit legacy Parakeet rollback.
 
 Windows/Linux:
 
@@ -208,7 +253,7 @@ Windows/Linux:
 
 Mac:
 
-- Use `--device mlx`
+- Use `--device parakeet` (default on Apple Silicon)
 
 # Groq API Integration
 
@@ -276,6 +321,8 @@ transcribe-anything large_podcast.mp3 --device groq --model whisper-large-v3-tur
 
 | Backend | Device Flag | Key Arguments | Best For |
 |---------|-------------|---------------|----------|
+| **Parakeet CoreML** | `--device parakeet` | `--model parakeet-v3`, `--language en` | Default local English transcription, word timestamps, literal filler events on Apple Silicon |
+| **Parakeet MLX (legacy)** | `--device parakeet-mlx` | `--model parakeet-v2` or `parakeet-v3` | Explicit rollback and comparisons on Apple Silicon |
 | **Groq API** | `--device groq` | `--groq_api_key`, `--initial_prompt` | Fastest transcription (cloud) |
 | **MLX** | `--device mlx` | `--batch_size`, `--verbose`, `--initial_prompt` | Mac Apple Silicon |
 | **Insanely Fast** | `--device insane` | `--batch-size`, `--hf_token`, `--flash`, `--timestamp` | Windows/Linux GPU |
