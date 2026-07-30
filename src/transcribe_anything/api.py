@@ -26,6 +26,7 @@ from transcribe_anything.audio import fetch_audio
 from transcribe_anything.groq_whisper import run_groq_whisper
 from transcribe_anything.insanely_fast_whisper import run_insanely_fast_whisper
 from transcribe_anything.logger import log_error
+from transcribe_anything.parakeet_coreml import run_parakeet_coreml
 from transcribe_anything.parakeet_mlx import run_parakeet_mlx
 from transcribe_anything.util import chop_double_extension, sanitize_filename
 from transcribe_anything.whisper import get_computing_device, run_whisper
@@ -57,6 +58,7 @@ class Device(Enum):
     MLX = "mlx"
     GROQ = "groq"
     PARAKEET = "parakeet"
+    PARAKEET_MLX = "parakeet-mlx"
 
     def __str__(self) -> str:
         return self.value
@@ -81,8 +83,12 @@ class Device(Enum):
             return Device.GROQ
         if device == "parakeet":
             if sys.platform != "darwin":
-                raise ValueError("Parakeet (CoreML/MLX) is only supported on macOS.")
+                raise ValueError("Parakeet CoreML is only supported on macOS.")
             return Device.PARAKEET
+        if device == "parakeet-mlx":
+            if sys.platform != "darwin":
+                raise ValueError("Parakeet MLX is only supported on macOS.")
+            return Device.PARAKEET_MLX
         # Backward compatibility: accept 'mps' as alias for 'mlx'
         if device == "mps":
             if sys.platform != "darwin":
@@ -264,6 +270,10 @@ def transcribe(
             print("#####################################")
             print("####### PARAKEET CoreML MODE! #######")
             print("#####################################")
+        elif device_enum == Device.PARAKEET_MLX:
+            print("#####################################")
+            print("######## PARAKEET MLX MODE! #########")
+            print("#####################################")
         else:
             raise ValueError(f"Unknown device {device}")
         print(f"Using device {device}")
@@ -278,7 +288,7 @@ def transcribe(
             other_args.extend(["--initial_prompt", initial_prompt])
             print(f"Using initial prompt: {initial_prompt[:100]}{'...' if len(initial_prompt) > 100 else ''}")
 
-        print(f"Running whisper on {tmp_wav} (will install models on first run)")
+        print(f"Running ASR on {tmp_wav} (the selected backend may install models on first run)")
         with tempfile.TemporaryDirectory() as tmpdir:
             if device_enum == Device.GROQ:
                 run_groq_whisper(
@@ -304,6 +314,14 @@ def transcribe(
             elif device_enum == Device.MLX:
                 run_whisper_mac_mlx(input_wav=Path(tmp_wav), model=model_str, output_dir=Path(tmpdir), language=language_str if language_str else None, task=task_str, other_args=other_args)
             elif device_enum == Device.PARAKEET:
+                run_parakeet_coreml(
+                    input_wav=Path(tmp_wav),
+                    model=model_str,
+                    output_dir=Path(tmpdir),
+                    language=language_str if language_str else None,
+                    other_args=other_args,
+                )
+            elif device_enum == Device.PARAKEET_MLX:
                 run_parakeet_mlx(
                     input_wav=Path(tmp_wav),
                     model=model_str,
